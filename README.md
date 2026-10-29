@@ -129,6 +129,191 @@ The `git add <file>` (not `-A`) ensures only the intended file is staged — no 
 
 ---
 
+## Automation examples
+
+These are real agent workflows — how the 6 tools chain together for persistent, multi-session tasks.
+
+---
+
+### 1. Session startup (run every new conversation)
+
+```json
+[
+  {
+    "tool": "memory_list",
+    "args": { "path": "." }
+  },
+  {
+    "tool": "memory_read",
+    "args": {}
+  }
+]
+```
+
+`memory_list` confirms the repo is reachable. `memory_read` with no args loads `MEMORY.md` — the agent's first action in every session per the spec. Add both to your agent's **system prompt bootstrap** so every conversation starts from memory without being asked.
+
+---
+
+### 2. Log a discovered fact or fix
+
+```json
+[
+  {
+    "tool": "memory_search",
+    "args": { "query": "pipelines" }
+  },
+  {
+    "tool": "memory_update",
+    "args": {
+      "entry": "- **OpenMontage pipelines** now working — venv at `Skills/OpenMontage/.venv/`, piper TTS voices still missing",
+      "path": "MEMORY.md",
+      "replace_pattern": "OpenMontage pipelines*"
+    }
+  }
+]
+```
+
+`memory_search` checks whether the topic already exists before writing. If found, `memory_update` with `replace_pattern` updates the line in-place; if not found it appends instead. Every call auto-commits — the history shows exactly when and what was learned.
+
+---
+
+### 3. Track a pending task across sessions
+
+```json
+[
+  {
+    "tool": "memory_write",
+    "args": {
+      "path": "tasks/openmontage-setup.md",
+      "content": "# OpenMontage Setup\n\n## Status\n- [x] Python 3.12 venv created\n- [x] piper-tts installed in venv\n- [ ] Download voices: `python -m piper.download_voices`\n\n## Notes\nCreated .env from .env.example. remotion-composer/node_modules kept (271MB) for rendering.\n",
+      "message": "Track openmontage setup task"
+    }
+  }
+]
+```
+
+`memory_write` creates topic files alongside `MEMORY.md`. Use `tasks/` as a subdirectory to separate live work from the index. When the task is done, use `memory_update` to check off items — the file stays, the history shows the evolution.
+
+---
+
+### 4. Save web research to the memory repo
+
+```json
+[
+  {
+    "tool": "memory_write",
+    "args": {
+      "path": "research/ripgrep-cli-research.md",
+      "content": "# ripgrep CLI research\n\nDate: 2026-10-29\n\n## Source\nhttps://github.com/BurntSushi/ripgrep/releases/tag/15.2.0\n\n## Key findings\n- rg 15.2.0 requires no runtime deps on Windows\n- Install via `winget install BurntSushi.ripgrep-Windows`\n- Alternative: download zip from GitHub releases and add to PATH\n\n## Decision\nUse winget for easy upgrade path. Added to user PATH at `C:\\Users\\You\\bin\\rg\\rg.exe`.\n",
+      "message": "Save ripgrep research findings"
+    }
+  },
+  {
+    "tool": "memory_update",
+    "args": {
+      "entry": "- `rg` 15.2.0 research: winget install path, no runtime deps (2026-10-29)",
+      "message": "Link research in MEMORY.md"
+    }
+  }
+]
+```
+
+First call creates the research file. Second call appends a link in `MEMORY.md` so the index points to the detail — the pattern is **small index, big files**.
+
+---
+
+### 5. Bullet-line TODOs in a file (append or replace)
+
+```json
+[
+  {
+    "tool": "memory_update",
+    "args": {
+      "entry": "- [ ] Download piper-tts voices (`python -m piper.download_voices` in OpenMontage venv)",
+      "path": "tasks/openmontage-setup.md"
+    }
+  }
+]
+```
+
+`memory_update` with only `entry` and `path` appends. With `replace_pattern` it does a find-and-replace on the first line containing that text — useful for updating a line that was already written.
+
+```json
+[
+  {
+    "tool": "memory_update",
+    "args": {
+      "entry": "- [x] Download piper-tts voices",
+      "path": "tasks/openmontage-setup.md",
+      "replace_pattern": "[ ] Download piper-tts"
+    }
+  }
+]
+```
+
+---
+
+### 6. Multi-session bug triage
+
+```json
+[
+  {
+    "tool": "memory_read",
+    "args": { "path": "bugs/pending" }
+  },
+  {
+    "tool": "memory_write",
+    "args": {
+      "path": "bugs/triage-2026-10-29.md",
+      "content": "# Bug Triage — 2026-10-29\n\n## Memory plugin\n- Path escape blocking: verified working ✅\n- Clean-tree guard: verified working ✅\n- schemastery dep resolution: fixed by npm install in plugin dir ✅\n\n## REA (reverse-engineer-anything)\n- `npx rea-agents setup` not run yet — CLI fallback works fine\n",
+      "message": "Log bug triage session"
+    }
+  }
+]
+```
+
+`memory_read` at the start shows current state. `memory_write` creates a dated session log. Over time `bugs/` accumulates a timeline you can `memory_search` for patterns.
+
+---
+
+### 7. Write and schedule a future reminder
+
+```json
+[
+  {
+    "tool": "memory_update",
+    "args": {
+      "entry": "- **TODO 2026-11-05**: Run `python -m piper.download_voices` in OpenMontage venv — unblocks TTS",
+      "message": "Schedule piper voices reminder for next week"
+    }
+  }
+]
+```
+
+`memory_update` appends a dated bullet to `MEMORY.md`. On the scheduled date, the agent reads `MEMORY.md` and picks up the pending item — no external scheduler needed.
+
+---
+
+### 8. Full session wrap-up pattern
+
+A complete end-of-session routine:
+
+```json
+[
+  { "tool": "memory_read",  "args": {} },
+  { "tool": "memory_list",  "args": {} },
+  { "tool": "memory_search", "args": { "query": "Pending|TODO|tasks/" } },
+  { "tool": "memory_update", "args": {
+      "entry": "- **2026-10-29**: Plugin installed, all 6 tools verified, pushed to GitHub",
+      "message": "Session wrap-up: plugin install session"
+  }}
+]
+```
+
+Running this at the end of every session ensures the next agent picks up exactly where this one left off.
+
+---
+
 ## Uninstall
 
 Remove the bundle from your profile:
