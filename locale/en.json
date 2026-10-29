@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Agent Memory Repo",
+    "description": "Persistent cross-session memory tools following the Agent Memory Repo spec."
+  }
+}

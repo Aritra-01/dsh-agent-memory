@@ -1,0 +1,5 @@
+- insert:
+    - id: agent-memory
+      name: '@local/agent-memory'
+      config:
+        memoryPath: 'C:\Users\NEEL\agent-memory'
