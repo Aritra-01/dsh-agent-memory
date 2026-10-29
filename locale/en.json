@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Agent Memory Repo",
-    "description": "Persistent cross-session memory tools following the Agent Memory Repo spec."
+    "title": "Agent Memory",
+    "description": "Git-backed persistent memory tools for DSH agents. Read, write, search, and manage a memory repo across sessions."
   }
 }
